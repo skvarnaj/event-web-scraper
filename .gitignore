@@ -1,0 +1,7 @@
+venv/
+events.json
+__pycache__/
+*.py[cod]
+.DS_Store
+test_scraper_functions.ipynb
+.env
