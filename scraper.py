@@ -8,13 +8,22 @@ class CraftScraper:
     def __init__(self):
         # We now map names to a tuple: (the parser function, the organization name, the URL)
         self.registry = {
+            # luma sites
             "recreate": (self.parse_luma_general, "ReCreate Collective", "https://lu.ma/reccreatecollective"),
-            "okofarms": (self.parse_okofarms, "Oko Farms", "https://www.okofarms.org/eventsstackedev"),
-            "cleos": (self.parse_cleos, "Cleo's Yarn Shop", "https://cleosyarnshop.com/pages/events-calendar"),
-            "farmone": (self.parse_farmone, "Farm.One", "https://farm.one/farm-one-events/"),
-            "susanalexandra": (self.parse_susan_alexandra, "Susan Alexandra", "https://www.susanalexandra.com/collections/events")
+            "mojo": (self.parse_luma_general, "Mojo Studios", "https://luma.com/mojostudio"),
+            "artgurl": (self.parse_luma_general, "Art Gurl", "https://luma.com/artgurl"),
+            "journalingclasses": (self.parse_luma_general, "@journalingclasses", "https://luma.com/journalingclasses"), # TODO add in year check date on this
             # craft nook only shows past events
             #"craftnook": (self.parse_luma_general, "Craft Nook", "https://lu.ma/craftnook?period=past")
+
+
+            # gcal sites
+            "cleos": (self.parse_cleos, "Cleo's Yarn Shop", "https://cleosyarnshop.com/pages/events-calendar"),
+
+            # other sites
+            "okofarms": (self.parse_okofarms, "Oko Farms", "https://www.okofarms.org/eventsstackedev"),
+            "farmone": (self.parse_farmone, "Farm.One", "https://farm.one/farm-one-events/"),
+            "susanalexandra": (self.parse_susan_alexandra, "Susan Alexandra", "https://www.susanalexandra.com/collections/events")
         }
 
     async def parse_luma_general(self, org_name, url):
