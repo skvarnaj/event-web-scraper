@@ -146,7 +146,7 @@ async def main():
     # 5. Format the Date string with a period after the day (e.g., Sat. Jan 24, 2026)
     # We use .strftime to get the parts, then string replace the first comma
     df['Date'] = df['temp_date'].dt.strftime('%a, %b %d, %Y')
-    #df['Date'] = df['Date'].str.replace(',', '', n=1) # Replace only the FIRST comma
+    df['Date'] = df['Date'].str.replace(',', '', n=1) # Replace only the FIRST comma
     df['Date'] = df['Date'].fillna('Check Website')
 
     # Cleanup temporary columns

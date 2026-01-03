@@ -27,7 +27,8 @@ class CraftScraper:
             "susanalexandra": (self.parse_susan_alexandra, "Susan Alexandra", "https://www.susanalexandra.com/collections/events"),
             "craft_society": (self.parse_craftsociety, "Craft Society", "https://www.craft-society.com/event-list"),
              "recess_grove": (self.parse_square_booking, "Recess Grove", "https://book.squareup.com/classes/ug7iad378g5yho/location/LR3E6CBQNN96A/classes"),
-             "lucky_risograph": (self.parse_lucky_risograph, "Lucky Risograph", "https://luckyrisograph.press/riso-foundation-group")
+             "lucky_risograph": (self.parse_lucky_risograph, "Lucky Risograph", "https://luckyrisograph.press/riso-foundation-group"),
+              "artshack": (self.parse_artshack, "Artshack Brooklyn", "https://www.artshackbrooklyn.org/events/events"),
         }
 
     def ensure_year(self, date_str):
@@ -668,6 +669,83 @@ class CraftScraper:
                 return events
 
             except Exception as e:
+                await browser.close()
+                return []
+    async def parse_artshack(self, org_name, url):
+        import re
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            
+            try:
+                # Go to the events page
+                await page.goto(url, wait_until="networkidle", timeout=60000)
+                
+                # Wait for the Webflow dynamic items to render
+                await page.wait_for_selector(".content-wrapper-featured", timeout=10000)
+                
+                events = []
+                # Target the "Current & upcoming" section items
+                items = await page.query_selector_all(".content-wrapper-featured")
+                
+                for item in items:
+                    # 1. Get the Title
+                    title_el = await item.query_selector(".heading-3")
+                    title = await title_el.inner_text() if title_el else ""
+                    
+                    # 2. Get the Date/Time blocks
+                    dt_elements = await item.query_selector_all(".time-date-text")
+                    
+                    raw_date = "TBD"
+                    raw_time = "TBD"
+                    
+                    # Only collect visible text
+                    texts = []
+                    for el in dt_elements:
+                        if await el.is_visible():
+                            texts.append(await el.inner_text())
+
+                    if texts:
+                        # Extract the first visible block (usually the date)
+                        primary_text = texts[0].strip()
+                        
+                        # Fix the "Sat Jan 31 - Sun Feb 1st1pm to 4pm" issue
+                        # If a time marker (like '1pm' or '1 pm') is stuck to the date:
+                        if re.search(r'\d\s?(am|pm)', primary_text.lower()):
+                            # Split at the first digit that is followed by am/pm
+                            split_match = re.split(r'(\d+\s?(?:am|pm))', primary_text, flags=re.IGNORECASE)
+                            raw_date = split_match[0].strip()
+                            # Reconstruct the time from the remaining parts
+                            raw_time = "".join(split_match[1:]).lower().replace(' ', '').replace('to', ' - ')
+                        else:
+                            raw_date = primary_text
+
+                        # If time wasn't pulled from the first block, check the second block
+                        if raw_time == "TBD" and len(texts) >= 2:
+                            raw_time = texts[1].lower().replace(' ', '').replace('to', ' - ')
+
+                    # 3. Final Cleaning
+                    if title and raw_date != "TBD":
+                        # Remove ordinal suffixes (1st, 2nd, 3rd, 4th) so the date parser is happy
+                        clean_date_str = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', raw_date)
+                        
+                        # Handle date ranges (take the first date only for filtering)
+                        if "-" in clean_date_str:
+                            clean_date_str = clean_date_str.split("-")[0].strip()
+
+                        events.append({
+                            "Organization": org_name,
+                            "Event": title.strip(),
+                            "Date": self.ensure_year(clean_date_str),
+                            "Time": raw_time,
+                            "URL": url
+                        })
+
+                await browser.close()
+                return events
+
+            except Exception as e:
+                print(f"Artshack error: {e}")
                 await browser.close()
                 return []
     
