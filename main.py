@@ -17,12 +17,14 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 # --- CONFIGURATION ---
 SENDER_EMAIL = "jnskvarna@gmail.com"
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-RECEIVER_EMAIL = "jnskvarna@gmail.com"
+RECEIVER_EMAIL = "tyndickson@gmail.com"
+CC_EMAIL = "jnskvarna@gmail.com"
 
 async def send_email(df):
     msg = MIMEMultipart()
     msg['From'] = SENDER_EMAIL
     msg['To'] = RECEIVER_EMAIL
+    msg['Cc'] = CC_EMAIL
     msg['Subject'] = f"✨ Upcoming Events!"
 
     # Generate the HTML table from Pandas
@@ -99,12 +101,14 @@ async def send_email(df):
 
     # Attach as 'html' — if you use 'plain', the CSS is ignored
     msg.attach(MIMEText(full_body, 'html'))
+    recipients = [RECEIVER_EMAIL, CC_EMAIL]
 
     try:
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
             server.login(SENDER_EMAIL, EMAIL_PASSWORD)
-            server.send_message(msg)
-        print("Aesthetic email sent successfully!")
+            # 2. Use the recipients list instead of letting it infer from msg['To']
+            server.sendmail(SENDER_EMAIL, recipients, msg.as_string())
+        print("Aesthetic email sent successfully to To and CC!")
     except Exception as e:
         print(f"Error sending email: {e}")
 
