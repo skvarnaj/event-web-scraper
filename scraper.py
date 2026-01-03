@@ -13,18 +13,72 @@ class CraftScraper:
             "mojo": (self.parse_luma_general, "Mojo Studios", "https://luma.com/mojostudio"),
             "artgurl": (self.parse_luma_general, "Art Gurl", "https://luma.com/artgurl"),
             "journalingclasses": (self.parse_luma_general, "@journalingclasses", "https://luma.com/journalingclasses"), # TODO add in year check date on this
+            
             # craft nook only shows past events
             #"craftnook": (self.parse_luma_general, "Craft Nook", "https://lu.ma/craftnook?period=past")
 
-
             # gcal sites
             "cleos": (self.parse_cleos, "Cleo's Yarn Shop", "https://cleosyarnshop.com/pages/events-calendar"),
+            "teastand": (self.parse_theteastand, "The Tea Stand", "https://www.theteastand.org/calendar/"),
 
             # other sites
             "okofarms": (self.parse_okofarms, "Oko Farms", "https://www.okofarms.org/eventsstackedev"),
             "farmone": (self.parse_farmone, "Farm.One", "https://farm.one/farm-one-events/"),
-            "susanalexandra": (self.parse_susan_alexandra, "Susan Alexandra", "https://www.susanalexandra.com/collections/events")
+            "susanalexandra": (self.parse_susan_alexandra, "Susan Alexandra", "https://www.susanalexandra.com/collections/events"),
+            "craft_society": (self.parse_craftsociety, "Craft Society", "https://www.craft-society.com/event-list"),
+             "recess_grove": (self.parse_square_booking, "Recess Grove", "https://book.squareup.com/classes/ug7iad378g5yho/location/LR3E6CBQNN96A/classes"),
+             "lucky_risograph": (self.parse_lucky_risograph, "Lucky Risograph", "https://luckyrisograph.press/riso-foundation-group")
         }
+
+    def ensure_year(self, date_str):
+        if not date_str or date_str == "TBD":
+            return date_str
+            
+        # Regex looks for any 4-digit year starting with 20 (e.g., 2025, 2026)
+        if not re.search(r'202\d', date_str):
+            # If no year found, append 2026. 
+            # We add a comma for better formatting if it looks like "Jan 5"
+            return f"{date_str.strip()}, 2026"
+        
+        return date_str
+    
+    def update_public_index(self):
+        # Create the HTML rows from your registry
+        list_items = ""
+        for key in self.registry:
+            _, org_name, url = self.registry[key]
+            list_items += f'            <li><a href="{url}" target="_blank">{org_name}</a></li>\n'
+
+        html_content = f"""<!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Tracked Craft Organizations</title>
+                    <style>
+                        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 40px auto; padding: 0 20px; }}
+                        h1 {{ color: #222; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }}
+                        ul {{ list-style: none; padding: 0; }}
+                        li {{ background: #fafafa; margin: 10px 0; padding: 15px; border-radius: 8px; border: 1px solid #eee; transition: transform 0.2s; }}
+                        li:hover {{ transform: translateX(5px); border-color: #007bff; }}
+                        a {{ text-decoration: none; color: #007bff; font-weight: 600; display: block; }}
+                        .footer {{ margin-top: 40px; font-size: 0.8em; color: #888; text-align: center; }}
+                    </style>
+                </head>
+                <body>
+                    <h1>Tracked Organizations</h1>
+                    <p>Currently monitoring {len(self.registry)} sites for new workshops:</p>
+                    <ul>
+                {list_items}
+                    </ul>
+                    <div class="footer">Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+                </body>
+                </html>"""
+
+        # Write the file to your VS Code workspace
+        with open("index.html", "w", encoding="utf-8") as f:
+            f.write(html_content)
+        print("✅ index.html has been updated in your folder.")
 
     async def parse_luma_general(self, org_name, url):
         async with async_playwright() as p:
@@ -75,7 +129,7 @@ class CraftScraper:
                     events.append({
                         "Organization": org_name,
                         "Event": text,
-                        "Date": current_date,
+                        "Date": self.ensure_year(current_date),
                         "Time": el['time'],
                         "URL": url
                     })
@@ -133,10 +187,6 @@ class CraftScraper:
             # Sort chronologically (including the year in the parse)
             events.sort(key=lambda x: datetime.strptime(x['Date'], "%a, %b %d, %Y"))
             return events
-
-        except Exception as e:
-            print(f"Extraction error: {e}")
-            return []
 
         except Exception as e:
             print(f"Extraction error: {e}")
@@ -250,6 +300,7 @@ class CraftScraper:
 
             await browser.close()
             return events
+        
     async def parse_susan_alexandra(self, org_name, url):
         json_url = "https://www.susanalexandra.com/collections/events/products.json"
         
@@ -316,6 +367,310 @@ class CraftScraper:
             print(f"Shopify Smart-Year Error: {e}")
             return []
     
+    async def parse_theteastand(self, org_name, url):
+        # We use the direct embed URL for the most stable HTML structure
+        embed_url = "https://calendar.google.com/calendar/u/0/embed?src=c40f9cfe3d861c76ac9855f5cbb8fd444b41fb2c647bd979fa70bf687fed008a@group.calendar.google.com&mode=AGENDA"
+        
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            
+            # This context forces the browser to New York time even if you're in PST
+            context = await browser.new_context(
+                timezone_id="America/New_York",
+                locale="en-US",
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+            page = await context.new_page()
+            
+            try:
+                await page.goto(embed_url, wait_until="networkidle")
+                # Wait for the main event container class
+                await page.wait_for_selector('.ryakYc', timeout=15000)
+
+                events_data = await page.evaluate("""() => {
+                    const results = [];
+                    const rows = document.querySelectorAll('.ryakYc');
+                    
+                    rows.forEach(row => {
+                        // Title is in the URIUGf class
+                        const titleEl = row.querySelector('.URIUGf');
+                        const title = titleEl ? titleEl.innerText.trim() : "";
+                        
+                        // Time is in the dIVgne class
+                        const timeEl = row.querySelector('.dIVgne');
+                        const time = timeEl ? timeEl.innerText.trim() : "All Day";
+
+                        // Get the button with the full aria-label for date extraction
+                        const btn = row.querySelector('[role="button"]');
+                        const label = btn ? btn.getAttribute('aria-label') : "";
+                        
+                        // REGEX: Extracts "January 10, 2026" from the long label string
+                        const dateMatch = label.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s\d{1,2},\s202\d/);
+                        const dateStr = dateMatch ? dateMatch[0] : "TBD";
+                        
+                        if (title) {
+                            results.push({ title, time, date: dateStr });
+                        }
+                    });
+                    return results;
+                }""")
+
+                events = []
+                for item in events_data:
+                    # Pass the date through your ensure_year helper
+                    final_date = self.ensure_year(item['date'])
+                    
+                    events.append({
+                        "Organization": org_name,
+                        "Event": item['title'],
+                        "Date": final_date,
+                        "Time": item['time'],
+                        "URL": "https://www.theteastand.org/calendar/"
+                    })
+
+                await browser.close()
+                return events
+
+            except Exception as e:
+                print(f"Tea Stand Extraction error: {e}")
+                await browser.close()
+                return []
+    async def parse_craftsociety(self, org_name, url):
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                timezone_id="America/New_York",
+                locale="en-US",
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+            page = await context.new_page()
+            
+            try:
+                await page.goto(url, wait_until="networkidle")
+                # Increased timeout to ensure all items load
+                await page.wait_for_selector('li', timeout=20000)
+
+                events_data = await page.evaluate("""() => {
+                    const results = [];
+                    
+                    // 1. Find the "Past Events" marker
+                    const allHeadings = Array.from(document.querySelectorAll('h1, h2, h3, h4, p, span, strong'));
+                    const pastMarker = allHeadings.find(el => el.innerText.trim().toLowerCase().includes('past events'));
+
+                    // 2. Get all potential event items
+                    const items = Array.from(document.querySelectorAll('li'));
+                    
+                    items.forEach(item => {
+                        // STOP CONDITION: If this item is located AFTER the "Past Events" marker, skip it.
+                        if (pastMarker && (pastMarker.compareDocumentPosition(item) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+                            return; 
+                        }
+
+                        const text = item.innerText.trim();
+                        // Basic filter to ensure it's a date-carrying event
+                        if (text.length > 10 && (text.includes('Jan') || text.includes('Feb') || text.includes('Mar'))) {
+                            let title = "";
+                            let datePart = "";
+                            
+                            if (text.includes(':')) {
+                                const parts = text.split(':');
+                                title = parts[0].trim();
+                                datePart = parts.slice(1).join(':').trim();
+                            } else if (text.includes('.')) {
+                                const parts = text.split('.');
+                                title = parts[0].trim();
+                                datePart = parts[1].trim();
+                            } else {
+                                title = text;
+                            }
+                            results.push({ title, datePart });
+                        }
+                    });
+                    return results;
+                }""")
+
+                events = []
+                for item in events_data:
+                    # 1. Clean out newlines
+                    raw_title = item['title'].replace('\n', ' ').strip()
+                    full_raw_text = f"{raw_title} {item['datePart']}".replace('\n', ' ').strip()
+
+                    # 2. Extract specific date pattern (Day, Month Date)
+                    # Stops matching before extra text like "Craft Society" or "Come mend"
+                    date_pattern = r'\b(Sun|Mon|Tue|Wed|Thu|Fri|Sat)[a-z]*,\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}'
+                    date_match = re.search(date_pattern, full_raw_text, re.IGNORECASE)
+                    
+                    if date_match:
+                        clean_date = date_match.group(0)
+                        clean_title = full_raw_text[:date_match.start()].strip()
+                    else:
+                        clean_date = item['datePart']
+                        clean_title = raw_title
+
+                    # Cleanup title punctuation
+                    clean_title = clean_title.rstrip(':.- ')
+                    
+                    # Append year helper
+                    final_date = self.ensure_year(clean_date)
+
+                    events.append({
+                        "Organization": org_name,
+                        "Event": clean_title,
+                        "Date": final_date,
+                        "Time": "Check Website",
+                        "URL": url
+                    })
+                
+                await browser.close()
+                return events
+
+            except Exception as e:
+                print(f"Craft Society Extraction Error: {e}")
+                await browser.close()
+                return []
+    async def parse_square_booking(self, org_name, url):
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                timezone_id="America/New_York",
+                locale="en-US"
+            )
+            page = await context.new_page()
+            
+            try:
+                await page.goto(url, wait_until="networkidle")
+                # Wait for the main content area
+                await page.wait_for_selector('h2, li', timeout=20000)
+
+                events_data = await page.evaluate("""() => {
+                    const results = [];
+                    let current_date = "";
+                    
+                    // Get every element that could be a date header or an event item
+                    const elements = document.querySelectorAll('h2, li, [role="listitem"]');
+                    
+                    elements.forEach(el => {
+                        const text = el.innerText.trim();
+                        
+                        // 1. Check if this element is a Date Header (e.g., "Saturday, January 24, 2026")
+                        if (el.tagName === 'H2' || el.classList.contains('heading-20')) {
+                            if (text.includes('202')) { // Look for the year to confirm it's a date
+                                current_date = text;
+                            }
+                        } 
+                        
+                        // 2. If it's a list item and we have a current_date, it's an event
+                        else if (el.tagName === 'LI' || el.getAttribute('role') === 'listitem') {
+                            if (text.toLowerCase().includes('am') || text.toLowerCase().includes('pm')) {
+                                results.push({
+                                    title: text.split('\\n')[0].trim(), // Take first line as title
+                                    raw_info: text,
+                                    date: current_date
+                                });
+                            }
+                        }
+                    });
+                    return results;
+                }""")
+
+                events = []
+                for item in events_data:
+                    # Cleanup the Title (Square often puts price/duration in the text)
+                    # "Basket Weaving 2 hrs $50" -> "Basket Weaving"
+                    clean_title = item['title'].split('$')[0].strip()
+                    
+                    # Cleanup the Time (Find "10:30 AM" in the text)
+                    time_match = re.search(r'\d{1,2}:\d{2}\s*(?:am|pm|AM|PM)', item['raw_info'])
+                    clean_time = time_match.group(0).lower().replace(' ', '') if time_match else "Check Site"
+
+                    # Cleanup the Date (Remove the Day of Week prefix if you want it identical to others)
+                    # "Saturday, January 24, 2026" -> "Jan 24, 2026"
+                    raw_date = item['date']
+                    date_match = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}', raw_date)
+                    clean_date = date_match.group(0) if date_match else raw_date
+
+                    events.append({
+                        "Organization": org_name,
+                        "Event": clean_title,
+                        "Date": self.ensure_year(clean_date),
+                        "Time": clean_time,
+                        "URL": url
+                    })
+                
+                await browser.close()
+                return events
+
+            except Exception as e:
+                print(f"Square Sticky Header Error: {e}")
+                await browser.close()
+                return []
+    async def parse_lucky_risograph(self, org_name, url):
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                timezone_id="America/New_York",
+                locale="en-US",
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+            page = await context.new_page()
+            
+            try:
+                # Standardized timeout for third-party widgets
+                await page.goto(url, wait_until="load", timeout=60000)
+                
+                # Essential delay for the Acuity/booking container to populate
+                await page.wait_for_timeout(10000)
+
+                events = []
+                
+                # Search all frames for the event text
+                for frame in page.frames:
+                    try:
+                        frame_text = await frame.evaluate("() => document.body.innerText")
+                        if not frame_text: 
+                            continue
+
+                        lines = frame_text.split('\n')
+                        current_date = "TBD"
+
+                        for line in lines:
+                            line = line.strip()
+                            if not line: 
+                                continue
+
+                            # Capture Date Header (Looks for year and month)
+                            if "202" in line and any(m in line for m in ["Jan", "Feb", "Mar"]):
+                                current_date = line
+                            
+                            # Capture Time Slot
+                            if ":" in line and ("am" in line.lower() or "pm" in line.lower()):
+                                # Using re (pre-imported in your environment)
+                                date_match = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}', current_date, re.I)
+                                
+                                if date_match:
+                                    raw_match = date_match.group(0)
+                                    # Normalize to "Jan 24" format
+                                    clean_date = f"{raw_match[:3]} {raw_match.split()[-1]}"
+                                else:
+                                    clean_date = current_date
+
+                                events.append({
+                                    "Organization": org_name,
+                                    "Event": "Riso Foundation: Group Workshop",
+                                    "Date": self.ensure_year(clean_date),
+                                    "Time": line.lower().replace(' ', ''),
+                                    "URL": url
+                                })
+                    except:
+                        continue
+
+                await browser.close()
+                return events
+
+            except Exception as e:
+                await browser.close()
+                return []
+    
     async def run_all(self):
         all_data = []
         for name, (parser_func, org_label, url) in self.registry.items():
@@ -326,4 +681,6 @@ class CraftScraper:
                 all_data.extend(site_events)
             except Exception as e:
                 print(f"Error scraping {name}: {e}")
+
+        self.update_public_index()
         return all_data

@@ -16,7 +16,6 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 # --- CONFIGURATION ---
 SENDER_EMAIL = "jnskvarna@gmail.com"
-# TO DO: hide password
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 RECEIVER_EMAIL = "jnskvarna@gmail.com"
 
@@ -124,11 +123,13 @@ async def main():
     df = df.drop(columns=['URL'])
 
     # 4. Sort by Date
+    df['Time'] = df['Time'].astype(str).str.lower().str.replace(r'(\d+)\s+(am|pm)', r'\1\2', regex=True)
     df['temp_date'] = pd.to_datetime(df['Date'], format='mixed', errors='coerce')
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     df = df[(df['temp_date'] >= today) | (df['temp_date'].isna())]
-    df = df.sort_values(by='temp_date', ascending=True, na_position='last')
-    df = df.drop(columns=['temp_date'])
+    df['temp_time'] = pd.to_datetime(df['Time'].replace('All Day', '12:00 AM'), format='%I:%M %p', errors='coerce').dt.time
+    df = df.sort_values(by=['temp_date', 'temp_time'], ascending=True, na_position='last')
+    df = df.drop(columns=['temp_date', 'temp_time'])
     df['Date'] = pd.to_datetime(df['Date'], format='mixed', errors='coerce').dt.strftime('%a, %b %d, %Y')
     df['Date'] = df['Date'].fillna('Check Website')
 
