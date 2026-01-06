@@ -17,7 +17,7 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 # --- CONFIGURATION ---
 SENDER_EMAIL = "jnskvarna@gmail.com"
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-RECEIVER_EMAIL = "jnskvarna@gmail.com" #"tyndickson@gmail.com"
+RECEIVER_EMAIL = "tyndickson@gmail.com"
 CC_EMAIL = "jnskvarna@gmail.com"
 
 async def send_email(df):
