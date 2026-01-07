@@ -12,7 +12,7 @@ class CraftScraper:
             "recreate": (self.parse_luma_general, "ReCreate Collective", "https://lu.ma/reccreatecollective"),
             "mojo": (self.parse_luma_general, "Mojo Studios", "https://luma.com/mojostudio"),
             "artgurl": (self.parse_luma_general, "Art Gurl", "https://luma.com/artgurl"),
-            "journalingclasses": (self.parse_luma_general, "@journalingclasses", "https://luma.com/journalingclasses"), # TODO add in year check date on this
+            "journalingclasses": (self.parse_luma_general, "@journalingclasses", "https://luma.com/journalingclasses"),
             
             # craft nook only shows past events
             #"craftnook": (self.parse_luma_general, "Craft Nook", "https://lu.ma/craftnook?period=past")
@@ -26,9 +26,9 @@ class CraftScraper:
             "farmone": (self.parse_farmone, "Farm.One", "https://farm.one/farm-one-events/"),
             "susanalexandra": (self.parse_susan_alexandra, "Susan Alexandra", "https://www.susanalexandra.com/collections/events"),
             "craft_society": (self.parse_craftsociety, "Craft Society", "https://www.craft-society.com/event-list"),
-             "recess_grove": (self.parse_square_booking, "Recess Grove", "https://book.squareup.com/classes/ug7iad378g5yho/location/LR3E6CBQNN96A/classes"),
-             "lucky_risograph": (self.parse_lucky_risograph, "Lucky Risograph", "https://luckyrisograph.press/riso-foundation-group"),
-              "artshack": (self.parse_artshack, "Artshack Brooklyn", "https://www.artshackbrooklyn.org/events/events"),
+            "recess_grove": (self.parse_square_booking, "Recess Grove", "https://book.squareup.com/classes/ug7iad378g5yho/location/LR3E6CBQNN96A/classes"),
+            "lucky_risograph": (self.parse_lucky_risograph, "Lucky Risograph", "https://luckyrisograph.press/riso-foundation-group"),
+            "artshack": (self.parse_artshack, "Artshack Brooklyn", "https://www.artshackbrooklyn.org/events/events"),
         }
 
     def ensure_year(self, date_str):
